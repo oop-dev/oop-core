@@ -2,8 +2,30 @@ import {classMap} from "./oapi";
 import {Base} from "./Base";
 import {migrateSql} from "./BaseProxy";
 let base={list:true,on:true,select:true,where:true}
-let pmap={}
 let parseMap={}
+export function migrate(classMap) {
+    Object.entries(classMap).forEach(([k,v])=>{
+        let o=new classMap[k]()
+        gen(o,null,0)//数据库类表迁移
+        //迁移页面
+        gen_gets(o,'gets')
+        gen_add(o,'add')
+        gen_update(o,'update')
+        gen_get(o,'get')
+        /*        console.log(Object.keys(o))
+                listAsyncFunctionNames(o).forEach(x=>{
+                    console.log( x)
+                    if (x=='get'){
+                        gen_get(o ,x)
+                    }else {
+                        gen_other(o,x)
+                    }
+                })*/
+    })
+    console.log(parseMap)
+    Object.values(parseMap).forEach(sql=>migrateSql(sql))
+
+}
 function gen(u:Base<any>,pname,tp) {
     //克隆classMap
     let clazz=u.constructor.name.toLowerCase()
@@ -11,7 +33,7 @@ function gen(u:Base<any>,pname,tp) {
     parseMap[clazz]=true
     let body=[]
 
-     body=Object.entries(u).filter(([k, v]) =>{
+    body=Object.entries(u).filter(([k, v]) =>{
         if (u.col(k)?.link=='1n'){
             gen(new classMap[k](),clazz,1)
         }
@@ -38,31 +60,99 @@ function gen(u:Base<any>,pname,tp) {
     parseMap[clazz]=sql
     return sql
 }
-export function migrate(classMap) {
-    Object.entries(classMap).forEach(([k,v])=>{
-        let o=new classMap[k]()
-        gen(o,null,0)//数据库类表迁移
-        //迁移页面
-        gen_get(o,'gets')
-        gen_other(o,'add')
-/*        console.log(Object.keys(o))
-        listAsyncFunctionNames(o).forEach(x=>{
-            console.log( x)
-            if (x=='get'){
-                gen_get(o ,x)
-            }else {
-                gen_other(o,x)
-            }
-        })*/
-    })
-    console.log(parseMap)
-    Object.values(parseMap).forEach(sql=>migrateSql(sql))
-
-}
 
 async function gen_get(o,fn) {
     let name=o.constructor.name
+    let f=`src/views/${name.toLowerCase()}/${fn}.vue`
+    if (await Bun.file(f).exists())return
+    let cols=o.cols()
+    let selMap={}
+    let selclass=Object.keys(cols).filter(x=>typeof o[x]=="object"&&cols[x].sel)
+    selclass=selclass.map(x=>{
+        selMap[x]=x
+        return `import {${upper(x)}} from "../../../api/${upper(x)}"
+let ${x}=New(${upper(x)})
+`
+    }).join('')
+
+    console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
+    const page = `
+    <script setup lang="ts">import { New } from "../../../VueProxy";
+import {${name}} from "../../../api/${name}";
+import FormTable from "@/components/FormTable.vue";
+import FormTableItem from "@/components/FormTableItem.vue";
+import { useRoute } from 'vue-router';
+let o=New(${name},useRoute().query.id)
+${selclass}
+let selMap={${Object.entries(selMap).map(([k,v])=>`${k}:${v}`)}}
+</script>
+<template>
+  <el-form ref="formRef" :model="o" label-width="auto">
+    <view v-for="{ col, tag, sel, radio, check,show } in o.cols()">
+      <el-form-item v-if="show?.[0]=='1'"  :label="tag" :key="col">
+      
+        <el-select v-if="sel&&Array.isArray(o[col])" v-model="o[col]" multiple :placeholder="tag">
+          <el-option
+              v-for="(item, index) in selMap[col].list"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+          />
+        </el-select>      
+      
+        <el-select v-else-if="sel&&typeof o[col]=='object'" v-model="o[col]"  :placeholder="tag">
+          <el-option
+              v-for="(item, index) in selMap[col].list"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+          />
+        </el-select>      
+      
+        <el-select v-else-if="sel" v-model="o[col]" :placeholder="tag">
+          <el-option
+              v-for="(item, index) in sel"
+              :key="index"
+              :label="item"
+              :value="index"
+          />
+        </el-select>
+
+        <el-radio-group v-else-if="radio" v-model="o[col]">
+          <el-radio
+              v-for="(item, index) in radio"
+              :key="index"
+              :value="index"
+              size="large"
+          >
+            {{ item }}
+          </el-radio>
+        </el-radio-group>
+
+        <el-checkbox-group v-else-if="check" v-model="o[col]">
+          <el-checkbox
+              v-for="(item, index) in check"
+              :key="index"
+              :label="item"
+              :value="index"
+          />
+        </el-checkbox-group>
+        <FormTable :clazz="col" :list="o[col]"  v-else-if='Array.isArray(o[col])'></FormTable>
+        <FormTableItem :clazz="col" :obj="o[col]"  v-else-if='typeof o[col]==\`object\`'></FormTableItem>
+        <el-input v-else v-model="o[col]" />
+      </el-form-item>
+    </view>
+  </el-form>
+</template>
+`
+    await Bun.write(`src/views/${nameLow}/${fn}.vue`, page);
+}
+async function gen_gets(o,fn) {
+    let name=o.constructor.name
+    let nameLow=name.toLowerCase()
+    let f=`src/views/${name.toLowerCase()}/${fn}.vue`
+    if (await Bun.file(f).exists())return
     const page = `<script setup lang="ts">
 import {onMounted, ref} from "vue";
 import {${name}} from "../../../api/${name}";
@@ -97,14 +187,108 @@ let name='${nameLow}'
   </el-table>
 </template>
 `
-    await Bun.write(`src/views/${nameLow}/${fn}.vue`, page);
+    await Bun.write(f, page);
 }
 function upper(str) {
     if (!str) return str;  // 处理空字符串
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
-async function gen_other(o,fn) {
+async function gen_update(o,fn) {
     let name=o.constructor.name
+    let f=`src/views/${name.toLowerCase()}/${fn}.vue`
+    if (await Bun.file(f).exists())return
+    let cols=o.cols()
+    let selMap={}
+    let selclass=Object.keys(cols).filter(x=>typeof o[x]=="object"&&cols[x].sel)
+    selclass=selclass.map(x=>{
+        selMap[x]=x
+        return `import {${upper(x)}} from "../../../api/${upper(x)}"
+let ${x}=New(${upper(x)})
+`
+    }).join('')
+
+    console.log('selclass',selclass)
+    let nameLow=name.toLowerCase()
+    const page = `
+    <script setup lang="ts">
+import { New } from "../../../VueProxy";
+import {${name}} from "../../../api/${name}";
+import FormTable from "@/components/FormTable.vue";
+import FormTableItem from "@/components/FormTableItem.vue";
+import { useRoute } from 'vue-router';
+let o=New(${name},useRoute().query.id)
+${selclass}
+let selMap={${Object.entries(selMap).map(([k,v])=>`${k}:${v}`)}}
+</script>
+<template>
+  <el-form ref="formRef" :model="o" label-width="auto">
+    <view v-for="{ col, tag, sel, radio, check,show } in o.cols()">
+      <el-form-item v-if="show?.[0]=='1'"  :label="tag" :key="col">
+      
+        <el-select v-if="sel&&Array.isArray(o[col])" v-model="o[col]" multiple :placeholder="tag">
+          <el-option
+              v-for="(item, index) in selMap[col].list"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+          />
+        </el-select>      
+      
+        <el-select v-else-if="sel&&typeof o[col]=='object'" v-model="o[col]"  :placeholder="tag">
+          <el-option
+              v-for="(item, index) in selMap[col].list"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+          />
+        </el-select>      
+      
+        <el-select v-else-if="sel" v-model="o[col]" :placeholder="tag">
+          <el-option
+              v-for="(item, index) in sel"
+              :key="index"
+              :label="item"
+              :value="index"
+          />
+        </el-select>
+
+        <el-radio-group v-else-if="radio" v-model="o[col]">
+          <el-radio
+              v-for="(item, index) in radio"
+              :key="index"
+              :value="index"
+              size="large"
+          >
+            {{ item }}
+          </el-radio>
+        </el-radio-group>
+
+        <el-checkbox-group v-else-if="check" v-model="o[col]">
+          <el-checkbox
+              v-for="(item, index) in check"
+              :key="index"
+              :label="item"
+              :value="index"
+          />
+        </el-checkbox-group>
+        <FormTable :clazz="col" :list="o[col]"  v-else-if='Array.isArray(o[col])'></FormTable>
+        <FormTableItem :clazz="col" :obj="o[col]"  v-else-if='typeof o[col]==\`object\`'></FormTableItem>
+        <el-input v-else v-model="o[col]" />
+      </el-form-item>
+    </view>
+    <view style="display: flex; justify-content: space-between;" >
+      <el-button @click="" type="primary" plain>重置</el-button>
+      <el-button @click="o.${fn}()" type="primary" plain>提交</el-button>
+    </view>
+  </el-form>
+</template>
+`
+    await Bun.write(`src/views/${nameLow}/${fn}.vue`, page);
+}
+async function gen_add(o,fn) {
+    let name=o.constructor.name
+    let f=`src/views/${name.toLowerCase()}/${fn}.vue`
+    if (await Bun.file(f).exists())return
     let cols=o.cols()
     let selMap={}
     let selclass=Object.keys(cols).filter(x=>typeof o[x]=="object"&&cols[x].sel)

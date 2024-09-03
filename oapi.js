@@ -3,6 +3,7 @@ import {migrateSql, New, NewBase} from "./BaseProxy.ts";
 import {Base} from "./Base";
 import {migrate} from "./migrate";
 import {conf} from "./conf";
+import {verifyToken} from "./utils.js";
 export const classMap = {}
 let path=import.meta.path.split('node_modules')[0]
 export async function run() {
@@ -31,7 +32,6 @@ export async function run() {
                 if (r.method == "OPTIONS"){return Rsp(204, '',rid)}
 
                 const path = new URL(r.url).pathname;
-                console.log(path,conf.auth,conf.blacklist.includes(path),await r.headers.get('Authorization'),await verifyToken(r.headers.get('Authorization')))
                 if (conf.auth && !conf.blacklist.includes(path) && !(await verifyToken(r.headers.get('Authorization')))) {
                     return Rsp(401, '请登录',rid)
                 }
@@ -47,7 +47,7 @@ export async function run() {
                 let msg = typeof e == 'string' ? e : e.message
                 console.error('msg:', msg);
                 console.error('stack:', e.stack);
-                return Rsp(555, msg,rid)
+                return Rsp(500, msg,rid)
             }
         }
     });
@@ -65,49 +65,11 @@ function Rsp(code, data,rid) {
     }
     return rsp
 }
-async function sha256(message) {
-    // 将字符串编码为 Uint8Array
-    const encoder = new TextEncoder();
-    const data = encoder.encode(message);
 
-    // 计算 SHA-256 哈希
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-
-    // 将 ArrayBuffer 转换为十六进制字符串
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
-
-    return hashHex;
-}
-function base64(input) {
-    // 将输入字符串转换为 Buffer 对象，并编码为 Base64
-    return Buffer.from(input).toString('base64');
-}
-
-// Base64 解码函数
-function deBase64(encoded) {
-    // 将 Base64 编码的字符串转换为 Buffer 对象，并解码为 UTF-8 字符串
-    return Buffer.from(encoded, 'base64').toString('utf-8');
-}
-export async function jwtToken(obj) {
-    const sign = await sha256(JSON.stringify(obj))
-    let jwt={payload:obj,sign:sign}
-    let jwtToken=base64(JSON.stringify(jwt))
-    console.log('jwtToken',jwtToken)
-    return jwtToken
-}
-export async function verifyToken(token){
-    if (!token)return false
-    let jwt=JSON.parse(deBase64(token))
-    console.log('jwt',jwt)
-    return token==await jwtToken(jwt.payload)
-}
 
 async function loadClass() {
     for (const item of await readdir(`${path}api`, {recursive: true})) {
-        console.log('item',item)
         const module = await import(`${path}api/${item}`);
-        console.log('module',module)
         let className = item.replace(".ts", "")
         // @ts-ignore
         classMap[className.toLowerCase()] = module[className]
@@ -129,7 +91,6 @@ export function createInstance(className, json) {
         }else if (json[k]&&typeof v=='object'){
             obj[k]= createInstance(k,json[k])
         }else if (json?.[k]) {
-            console.log(k)
             obj[k]=json?.[k]
         }
     })
@@ -151,7 +112,6 @@ export function createInstanceAndReq(className, json) {
         }else if (json[k]&&typeof v=='object'){
             obj[k]= createInstance(k,json[k])
         }else if (json?.[k]) {
-            console.log(k)
             obj[k]=json?.[k]
         }
         delete json[k]
