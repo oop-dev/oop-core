@@ -1,7 +1,10 @@
-import {Pool} from "pg";
 import {classMap,createInstance} from "./oapi";
 import {Base} from "./Base";
 import {conf} from "./conf";
+let Pool=null
+if (typeof window=='undefined'){
+    Pool= require('pg').Pool;
+}
 // 创建一个连接池
 const pool = new Pool({
     connectionString:conf.pg.dsn,
@@ -135,6 +138,23 @@ export function New<T>(clazz: new (...args: any[]) => T): T {
                     // 不执行原始方法
                 };
             }
+            if (property === 'gets'&&!target[property]) {
+                return async function (...args) {
+                    console.log('name',receiver.name)
+                    console.log('args',args)
+                    const conn = await pool.connect(); // 从连接池获取一个客户端连接
+                    try{
+                        let parseMap = {}
+                        return await gets(receiver, conn, parseMap,isEmptyObject(args[0])?undefined:args[0])
+                    }catch (e) {
+                        throw e
+                    }finally {
+                        conn.release(); // 释放客户端连接，返回连接池
+                        console.log('release')
+                    }
+                    // 不执行原始方法
+                };
+            }
             if (property === 'add'&&!target[property]) {
                 // 返回一个新的函数，这个函数不调用原始方法
                 return async function (...args) {
@@ -258,18 +278,27 @@ async function gets(u, conn, parseMap,where?) {
     let join = Object.entries(u).filter(([key, value]) =>u.select&&u.select.includes(key)&&value&& key!='list'&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = k
         let rootjoin=''
+        let on=v.on? `on ${v.on}` : ''
         if (u.col(k)?.link == 'n1'){
-            rootjoin=`left join ${k} on "${clazz}".${k} = ${k}.id`
+            rootjoin=`left join ${k} on "${clazz}".${k} = ${k}.id ${on}`
         }else if (u.col(k)?.link == 'nn'){
-            rootjoin=`left join lateral unnest("${clazz}".${k}) AS ${k}_id ON true JOIN ${k}  ON ${k}.id = ${k}_id`
+            rootjoin=`left join lateral unnest("${clazz}".${k}) AS ${k}_id ON true JOIN ${k}  ON ${k}.id = ${k}_id ${on}`
         }else {
-            rootjoin=`left join ${son}  ON ${son}.${clazz} = ${clazz}.id`
+            rootjoin=`left join ${son}  ON ${son}.${clazz} = ${clazz}.id ${on}`
         }
         return [rootjoin, ...getjoin(v,parseMap)]
     }).flat().join('\n')
 
-    let sql = `select ${sel}
-                   from "${clazz}" ${join} ${where}`
+    let main=''
+    if (u.on){
+        where='where'
+        if (u.on.includes('limit')){
+            where=''
+        }
+        main=`(select * from "${clazz}" ${where} ${u.on}) as "${clazz}"`
+    }
+    main=main||`"${clazz}"`
+    let sql = `select ${sel} from ${main} ${join} ${where}`
     console.log('sql',sql)
     let rs = await conn.query(sql)
     console.log(rs.rows)
@@ -296,12 +325,13 @@ function getjoin(u,parseMap) {
     let join = Object.entries(u).filter(([key, value]) =>!base[key]&&u.select.includes(key)&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = v.constructor.name
         let rootjoin=''
+        let on=v.on? `on ${v.on}` : ''
         if (u.col(k)?.link == 'n1'){
-            rootjoin=`left join ${k} on ${clazz}.${k} = ${k}.id`
+            rootjoin=`left join ${k} on ${clazz}.${k} = ${k}.id ${on}`
         }else if (u.col(k)?.link == 'nn'){
-            rootjoin=`left join lateral unnest(${clazz}.${k}) AS ${k}_id ON true JOIN ${k}  ON ${k}.id = ${k}_id`
+            rootjoin=`left join lateral unnest(${clazz}.${k}) AS ${k}_id ON true JOIN ${k}  ON ${k}.id = ${k}_id ${on}`
         }else {
-            rootjoin=`left join ${son}  ON ${son}.${clazz} = ${clazz}.id`
+            rootjoin=`left join ${son}  ON ${son}.${clazz} = ${clazz}.id ${on}`
         }
         return rootjoin
     })
