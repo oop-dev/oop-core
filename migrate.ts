@@ -1,6 +1,6 @@
 import {classMap} from "./oapi";
 import {Base} from "./Base";
-import {migrateSql} from "./BaseProxy";
+import {migrateSql} from "./Base";
 let base={list:true,on:true,select:true,where:true}
 let parseMap={}
 export function migrate(classMap) {
