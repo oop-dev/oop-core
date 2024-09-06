@@ -5,7 +5,7 @@ if (typeof window=='undefined'){
     Pool= require('pg').Pool;
     // 创建一个连接池
     pool = new Pool({
-        connectionString:conf.pg.dsn,
+        connectionString:conf?.pg?.dsn||`postgres://${conf.appid}:${conf.appid}@oop-dev.com:5432/${conf.appid}`,
         max: 10, // 连接池中最大的连接数
         idleTimeoutMillis: 300000, // 30秒内未被使用的连接将被关闭
         connectionTimeoutMillis: 3000, // 2秒内无法建立连接则报错

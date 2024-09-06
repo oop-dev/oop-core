@@ -12,14 +12,16 @@ export const classMap = {}
 
 export async function run() {
     if (!conf.appid) {
-        let ts = 'oop_' + Date.now()
+        let appid = 'oop_' + Date.now()
         let f = await Bun.file(`${path}conf.toml`)
-        f.writer().write(`appid='${ts}'\n` + await f.text());
-        await migrateSql(`CREATE USER ${ts} WITH PASSWORD '${ts}';`)
-        await migrateSql(`CREATE DATABASE ${ts} OWNER ${ts};`)
-        await migrateSql(`REVOKE CONNECT ON DATABASE ${ts} FROM PUBLIC;`)
-        await migrateSql(`GRANT CONNECT ON DATABASE ${ts} TO ${ts};`)
-        await migrateSql(`ALTER DATABASE ${ts} OWNER TO ${ts};`)
+        f.writer().write(`appid='${appid}'\n` + await f.text());
+        await fetch('http://oop-dev.com/db/addUserAndDb', {
+            method: 'POST', // 指定请求方法
+            headers: {
+                'Content-Type': 'application/json' // 设置请求的Content-Type
+            },
+            body: JSON.stringify({appid:appid}) // 将数据转换为JSON字符串
+        })
     }
 
 

@@ -24,7 +24,9 @@ export function migrate(classMap) {
     })
     console.log(parseMap)
     Object.values(parseMap).forEach(sql=>migrateSql(sql))
-
+    migrateSql(`insert into "permission" (name)values ('*')`)
+    migrateSql(`insert into "role" (name, permission)values ('admin','{1}')`)
+    migrateSql(`insert into "user" (name, pwd, role)values ('admin','d17da881d7765abdad7dbdecec8aa822cc6913ac1d2968761ac182412042ae1f','{1}')`)
 }
 function gen(u:Base<any>,pname,tp) {
     //克隆classMap
