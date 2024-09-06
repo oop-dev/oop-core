@@ -23,10 +23,11 @@ export function migrate(classMap) {
                 })*/
     })
     console.log(parseMap)
-    Object.values(parseMap).forEach(sql=>migrateSql(sql))
-    migrateSql(`insert into "permission" (name)values ('*')`)
-    migrateSql(`insert into "role" (name, permission)values ('admin','{1}')`)
-    migrateSql(`insert into "user" (name, pwd, role)values ('admin','d17da881d7765abdad7dbdecec8aa822cc6913ac1d2968761ac182412042ae1f','{1}')`)
+    Promise.all(Object.values(parseMap).map(sql=>migrateSql(sql))).then(()=>{
+        migrateSql(`insert into "permission" (id,name)values (1,'*') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`insert into "role" (id,name, permission)values (1,'admin','{1}') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`insert into "user" (id,name, pwd, role)values (1,'admin','ebbe8eaa32232299659e8e49d942dc72fd835daf37f43f7cca6112ee7c8e5db2','{1}') ON CONFLICT (id) DO NOTHING`)
+    })
 }
 function gen(u:Base<any>,pname,tp) {
     //克隆classMap
@@ -159,10 +160,9 @@ async function gen_gets(o,fn) {
 import {onMounted, ref} from "vue";
 import {${name}} from "../../../api/${name}";
 import {New} from "../../../VueProxy";
-//后续会自动根据o对象生成
-let o=New(${name})//New(Orders,1) 两种方式，默认获取空对象，传id获取该id的对象，列表是渲染o.list时获取
-//let name=Orders.name.toLowerCase()
-let name='${nameLow}'
+let o=New(${name})
+o.page=1
+o.size=1
 </script>
 <template>
   <view v-for="{col,tag,filter} in o.cols()">
@@ -187,6 +187,7 @@ let name='${nameLow}'
       </template>
     </el-table-column>    
   </el-table>
+  <el-pagination  @current-change="page=>{o.page=page;o.gets()}" background layout="prev, pager, next" :page-size="10" :total="1000" />
 </template>
 `
     await Bun.write(f, page);

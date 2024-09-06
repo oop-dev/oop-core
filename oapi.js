@@ -1,30 +1,36 @@
+import {initdb} from "./Base";
 let readdir, migrateSql ,Base ,migrate ,conf ,verifyToken,path;
 if (typeof window=='undefined'){
+    path=import.meta.path.split('node_modules')[0]
+    //path='./'
     readdir = require('node:fs/promises').readdir;
     migrateSql = require('./Base.ts').migrateSql;
     Base = require('./Base').Base;
     migrate= require('./migrate').migrate;
-    conf = require('./conf').conf;
+    conf = require(`./conf.js`).conf;
     verifyToken = require('./utils.js').verifyToken
-    path=import.meta.path.split('node_modules')[0]
 }
 export const classMap = {}
 
 export async function run() {
-    if (!conf.appid) {
-        let appid = 'oop_' + Date.now()
+    if (!conf.pg) {
+        let name = UUID()
+        let pwd = UUID()
+        let db = UUID()
+        let dsn=`postgres://${name}:${pwd}@oop-dev.com:5432/${db}`
         let f = await Bun.file(`${path}conf.toml`)
-        f.writer().write(`appid='${appid}'\n` + await f.text());
-        await fetch('http://oop-dev.com/db/addUserAndDb', {
+        f.writer().write(await f.text()+`[pg]\ndsn='${dsn}'\n`);
+        let rsp=await fetch('http://oop-dev.com/db/addUserAndDb', {
             method: 'POST', // 指定请求方法
             headers: {
                 'Content-Type': 'application/json' // 设置请求的Content-Type
             },
-            body: JSON.stringify({appid:appid}) // 将数据转换为JSON字符串
+            body: JSON.stringify({name,pwd,db}) // 将数据转换为JSON字符串
         })
+        conf.pg= {dsn:dsn}
+        console.log(rsp)
     }
-
-
+    initdb()
     await loadClass()
     console.log(classMap)
 //migrate page and table
@@ -128,4 +134,9 @@ export function createInstanceAndReq(className, json) {
         delete json[k]
     })
     return {obj, req: json};
+}
+function UUID() {
+    const timestamp = Date.now().toString(36); // 使用36进制转换时间戳
+    const randomPart = Math.random().toString(36).substring(2, 10); // 随机数的一部分，转换为36进制并取前9位
+    return `${timestamp}${randomPart}`;
 }

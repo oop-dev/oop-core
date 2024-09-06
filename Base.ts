@@ -1,7 +1,7 @@
 import {classMap,createInstance} from "./oapi";
 import {conf} from "./conf";
 let Pool,pool: { connect: () => any; }
-if (typeof window=='undefined'){
+export function initdb() {
     Pool= require('pg').Pool;
     // 创建一个连接池
     pool = new Pool({
@@ -10,10 +10,7 @@ if (typeof window=='undefined'){
         idleTimeoutMillis: 300000, // 30秒内未被使用的连接将被关闭
         connectionTimeoutMillis: 3000, // 2秒内无法建立连接则报错
     });
-}else {
-    console.log('windows')
 }
-
 export class Base<T> {
     @Col({tag:'id',type:'',filter:true,show:'0111'})//1111代表增删改查是否显示
     id=0;
@@ -28,12 +25,44 @@ export class Base<T> {
         return this
     }
 
-    //增删改查方法被代理，其他不变
+    //增删改查方法被代理，
+    static async gets(where?:string){
+        let o=this
+        if (this.constructor.name=='Function'){
+            o=new classMap[this.name.toLowerCase()]()
+        }
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try{
+            let parseMap = {}
+            return await gets(o, conn, parseMap,isEmptyObject(where)?undefined:where)
+        }catch (e) {
+            throw e
+        }finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+    }
     async gets(where?:string){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
             return await gets(this, conn, parseMap,isEmptyObject(where)?undefined:where)
+        }catch (e) {
+            throw e
+        }finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+    }
+    static async get(where?:string){
+        let o=this
+        if (this.constructor.name=='Function'){
+            o=new classMap[this.name.toLowerCase()]()
+        }
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try{
+            let parseMap = {}
+            return await get(o, conn, parseMap,isEmptyObject(where)?undefined:where)
         }catch (e) {
             throw e
         }finally {
@@ -53,6 +82,27 @@ export class Base<T> {
             console.log('release')
         }
     }
+    static async add(data?){
+        let o=this
+        if (this.constructor.name=='Function'){
+            o=createInstance(this.name.toLowerCase(),data)
+        }
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            await conn.query('BEGIN'); // 开始事务
+            await add(null, null, o, conn)
+            await conn.query('COMMIT'); // 提交事务
+            console.log('Transaction committed successfully');
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
     async add(){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
@@ -70,11 +120,53 @@ export class Base<T> {
         }
         return null
     }
+    static async update(where?:string,data?){
+        let o=this
+        if (this.constructor.name=='Function'){
+            o=createInstance(this.name.toLowerCase(),data)
+        }
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            await conn.query('BEGIN'); // 开始事务
+            await update(null, null, o, conn,where)
+            await conn.query('COMMIT'); // 提交事务
+            console.log('Transaction committed successfully');
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
     async update(where?:string){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
             await conn.query('BEGIN'); // 开始事务
             await update(null, null, this, conn)
+            await conn.query('COMMIT'); // 提交事务
+            console.log('Transaction committed successfully');
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
+    static async del(where?:string){
+        let o=this
+        if (this.constructor.name=='Function'){
+            o=new classMap[this.name.toLowerCase()]()
+        }
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            await conn.query('BEGIN'); // 开始事务
+            await del( o, conn,isEmptyObject(where)?undefined:where)
             await conn.query('COMMIT'); // 提交事务
             console.log('Transaction committed successfully');
         } catch (err) {
@@ -462,8 +554,7 @@ async function add(pname, pid, u, conn) {
         return k || 'null'
     })
     //执行sql获取id
-    console.log(`insert into "${clazz}" (${keys})
-                 values (${values})`)
+    console.log(`insert into "${clazz}" ("${keys}") values (${values})`)
     let sql=`insert into "${clazz}" (${keys})values (${values}) RETURNING id`
     console.log(sql)
     let result = await conn.query(sql)
@@ -476,7 +567,7 @@ async function add(pname, pid, u, conn) {
     ));
 }
 
-async function update(pname, pid, u,conn) {
+async function update(pname, pid, u,conn,where?) {
     if (typeof u!='object')return
     let clazz = u.constructor.name.toLowerCase()
     let sub = []
@@ -500,7 +591,8 @@ async function update(pname, pid, u,conn) {
                 return getwhere(v)
             }
         }).flat().join(' and ')*/
-    let where = u.on
+    where = u.on||where
+    console.log('where',where)
     where = where ?'where '+where:`where id=${u.id}`
     //执行sql获取id
     let sql=`update "${clazz}" set ${values} ${where}`
