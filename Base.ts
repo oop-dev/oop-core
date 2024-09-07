@@ -18,6 +18,7 @@ export class Base<T> {
     select: (keyof T)|string[]=[]
     on=''
     constructor() {
+        wrapMethods(this);
     }
     sel(...keys: ((keyof T)|'*')[]) {
         // 只允许传入当前类的有效属性名
@@ -186,6 +187,60 @@ export class Base<T> {
             await del( this, conn,isEmptyObject(where)?undefined:where)
             await conn.query('COMMIT'); // 提交事务
             console.log('Transaction committed successfully');
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
+    static async count(where?:string){
+        let clazz=this.name
+        if (this.constructor.name=='Function'){
+            clazz=this.name
+        }
+        clazz=clazz.toLowerCase()
+        where=where?`where ${where}`:''
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            console.log(`select count(*) from ${clazz} ${where}`)
+            let rsp=await conn.query(`select count(*) from "${clazz}" ${where}`); // 提交事务
+            return parseInt(rsp.rows[0].count)
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
+     async count(where?:string){
+        let clazz=this.constructor.name.toLowerCase()
+        where=where?`where ${where}`:''
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            let rsp=await conn.query(`select count(*) from "${clazz}" ${where}`); // 提交事务
+            return parseInt(rsp.rows[0].count)
+        } catch (err) {
+            await conn.query('ROLLBACK'); // 事务回滚
+            console.log('Transaction rolled back due to error:', err);
+            throw err
+        } finally {
+            conn.release(); // 释放客户端连接，返回连接池
+            console.log('release')
+        }
+        return null
+    }
+    static async query(sql:string){
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try {
+            let rsp=await conn.query(sql); // 提交事务
+            return rsp
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
             console.log('Transaction rolled back due to error:', err);
@@ -648,4 +703,68 @@ export async function migrateSql(sql:string) {
 function isEmptyObject(obj) {
     if (!obj){return true}
     return Object.keys(obj).length === 0;
+}
+function wrapMethods(obj) {
+    if (typeof window !== 'undefined') {
+        // 浏览器环境，增强方法并替换为新的逻辑
+        for (let key of Object.getOwnPropertyNames(Object.getPrototypeOf(obj))) {
+            if (typeof obj[key] === 'function' && key !== 'constructor') {
+                // 替换方法
+                let className = obj.constructor.name.toLowerCase().replaceAll('_','')
+                obj[key] =async function (...args) {
+                    console.log(`New method logic for ${key} with arguments`, args);
+                    // 你可以在这里添加新的逻辑，而不是调用原来的方法
+                    let {list,...data}=obj
+                    let rsp= await post(className + '/' + key, data)
+/*                    if (rsp?.list){
+                        obj.list=rsp?.list
+                    }
+                    if (rsp?.total){
+                        obj.total=rsp?.total
+                    }*/
+                    console.log('end',obj)
+                    return rsp
+                };
+            }
+        }
+    }else {
+        console.log('backend')
+    }
+}
+export const post = async (url, data, header) => {
+    try {
+        // 创建完整的请求 URL
+        const requestUrl =import.meta.env.VITE_BASE_URL+'/' + url;
+        // 创建请求配置
+        const requestOptions = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('token')||'',
+                ...header // 合并额外的配置
+            },
+            body: JSON.stringify(data) // 将数据对象转换为 JSON 字符串
+        };
+
+        // 发送请求
+        const response = await fetch(requestUrl, requestOptions);
+
+        // 检查响应状态
+        if (!response.ok) {
+            // 如果响应状态不是 2xx，抛出错误
+            const errorData = await response.json();
+            if (response.status === 401) {
+                console.log('401---');
+                // 在 401 错误时重定向到登录页
+                window.location.href = '/login';
+            }
+            throw errorData;
+        }
+        const responseData = await response.json();
+        return responseData;
+
+    } catch (error) {
+        console.log('res-----', error);
+        throw error;
+    }
 }

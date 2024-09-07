@@ -118,11 +118,6 @@ export function createInstanceAndReq(className, json) {
     //Object.setPrototypeOf(Class.prototype, NewBase(Base));//代理父类增删改查
     let obj = new Class()//代理子类，子类没重写增删改查，调用父类代理的增删改查,重写了调用子类
 
-    if (json.page&&json.size){
-        obj.on=`offset ${(json.page-1)*json.size} limit ${json.size}`
-        delete json['page']
-        delete json['size']
-    }
     Object.entries(obj).forEach(([k, v]) => {
         if (json[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
             obj[k] = json?.[k].map(v => typeof v == 'object' ? createInstance(k, json[k]) : v)
