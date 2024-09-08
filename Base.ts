@@ -21,8 +21,9 @@ export class Base<T> {
     on=''
     constructor() {
         if (typeof window !== 'undefined') {
-            wrapMethods(this)
-            return reactive(this)
+            let obj=reactive(this)
+            wrapMethods(obj)
+            return obj
         }
     }
     sel(...keys: ((keyof T)|'*')[]) {
@@ -720,12 +721,12 @@ function wrapMethods(obj) {
                     // 你可以在这里添加新的逻辑，而不是调用原来的方法
                     let {list,...data}=obj
                     let rsp= await post(className + '/' + key, data)
-/*                    if (rsp?.list){
+                    if (rsp?.list){
                         obj.list=rsp?.list
                     }
                     if (rsp?.total){
                         obj.total=rsp?.total
-                    }*/
+                    }
                     console.log('end',obj)
                     return rsp
                 };
