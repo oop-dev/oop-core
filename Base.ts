@@ -1,7 +1,6 @@
 import {classMap,createInstance} from "./oapi";
 import {conf} from "./conf";
 import {reactive} from "vue"
-
 let Pool,pool: { connect: () => any; }
 export function initdb() {
     Pool= require('pg').Pool;
@@ -18,7 +17,7 @@ export class Base<T> {
     id=0;
     list:T[]
     select: (keyof T)|string[]=[]
-    on=''
+    where: string | undefined =''
     constructor() {
         if (typeof window !== 'undefined') {
             let obj=reactive(this)
@@ -31,7 +30,17 @@ export class Base<T> {
         this.select = keys;
         return this
     }
-
+    wh(where:string|number|undefined):this {
+        // 只允许传入当前类的有效属性名
+        where=typeof where=='number'?`id=${where}`:where
+        this.where=isEmptyObject(where)?'':where
+        return this
+    }
+    page(page:bigint,size:bigint):this{
+        // 只允许传入当前类的有效属性名
+        this.where=this.where+` offset ${(page-1)*size} limit ${size}`
+        return this
+    }
     //增删改查方法被代理，
     static async gets(where?:string){
         let o=this
@@ -41,7 +50,9 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            return await gets(o, conn, parseMap,isEmptyObject(where)?undefined:where)
+            where=typeof where=='number'?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
+            return await gets(o, conn, parseMap,where)
         }catch (e) {
             throw e
         }finally {
@@ -49,11 +60,13 @@ export class Base<T> {
             console.log('release')
         }
     }
-    async gets(where?:string){
+    async gets(where?:string|number){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            return await gets(this, conn, parseMap,isEmptyObject(where)?undefined:where)
+            where=typeof where=='number'?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
+            return await gets(this, conn, parseMap,where)
         }catch (e) {
             throw e
         }finally {
@@ -61,7 +74,7 @@ export class Base<T> {
             console.log('release')
         }
     }
-    static async get(where?:string){
+    static async get(where?:string|number){
         let o=this
         if (this.constructor.name=='Function'){
             o=new classMap[this.name.toLowerCase()]()
@@ -69,7 +82,9 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            return await get(o, conn, parseMap,isEmptyObject(where)?undefined:where)
+            where=typeof where=='number'?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
+            return await get(o, conn, parseMap,where)
         }catch (e) {
             throw e
         }finally {
@@ -77,11 +92,13 @@ export class Base<T> {
             console.log('release')
         }
     }
-    async get(where?:string){
+    async get(where?:string|number){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            return await get(this, conn, parseMap,isEmptyObject(where)?undefined:where)
+            where=typeof where=='number'?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
+            return await get(this, conn, parseMap,where)
         }catch (e) {
             throw e
         }finally {
@@ -89,6 +106,7 @@ export class Base<T> {
             console.log('release')
         }
     }
+
     static async add(data?){
         let o=this
         if (this.constructor.name=='Function'){
@@ -365,7 +383,7 @@ function create(clazz, row, m,parseMap) {
         obj = new classMap[clazz]()
         m[`${clazz}_${id}`] = obj
     }
-    delete obj.on
+    delete obj.where
     delete obj.select
     delete obj.where
     delete obj.list
@@ -412,8 +430,7 @@ async function gets(u, conn, parseMap,where?) {
             return getwhere(v)
         }
     }).filter(item => item !== undefined).flat().join(' and ')
-    where = where || u.where
-    where = where ? `where ${where}` : ''
+    where=where&&!where.includes('limit')?`where ${where}`:where
     console.log('where----------',JSON.stringify(where))
     console.log('sel----------',JSON.stringify(u.select))
     if (!u.select||u?.select?.length==0){u.select=['*']}
@@ -433,7 +450,7 @@ async function gets(u, conn, parseMap,where?) {
     let join = Object.entries(u).filter(([key, value]) =>u.select&&u.select.includes(key)&&value&& key!='list'&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = k
         let rootjoin=''
-        let on=v.on? `on ${v.on}` : ''
+        let on=v.where? `on ${v.where}` : ''
         if (u.col(k)?.link == 'n1'){
             rootjoin=`left join ${k} on "${clazz}".${k} = ${k}.id ${on}`
         }else if (u.col(k)?.link == 'nn'){
@@ -445,11 +462,11 @@ async function gets(u, conn, parseMap,where?) {
     }).flat().join('\n')
 
     let main=''
-    if (join){
-        let where_main=u.on&&!u.on.includes('limit')?`where ${u.on}`:where+u.on
+    if (join){//修改，两个where要同时判断，不是二选一
+        let where_main=u.where&&!u.where.includes('limit')?`where ${u.where}`:where+u.where
         main=`(select * from "${clazz}" ${where_main}) as "${clazz}"`
-    }else {
-        where=u.on&&!u.on.includes('limit')?`where ${u.on}`:where+u.on
+    }else if (u.where) {
+        where=u.where&&!u.where.includes('limit')?`where ${u.where}`:u.where
     }
     main=main||`"${clazz}"`
     let sql = `select ${sel} from ${main} ${join} ${where}`
@@ -479,7 +496,7 @@ function getjoin(u,parseMap) {
     let join = Object.entries(u).filter(([key, value]) =>!base[key]&&u.select.includes(key)&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = v.constructor.name
         let rootjoin=''
-        let on=v.on? `on ${v.on}` : ''
+        let on=v.where? `on ${v.where}` : ''
         if (u.col(k)?.link == 'n1'){
             rootjoin=`left join ${k} on ${clazz}.${k} = ${k}.id ${on}`
         }else if (u.col(k)?.link == 'nn'){
@@ -652,7 +669,7 @@ async function update(pname, pid, u,conn,where?) {
                 return getwhere(v)
             }
         }).flat().join(' and ')*/
-    where = u.on||where
+    where = u.where||where
     console.log('where',where)
     where = where ?'where '+where:`where id=${u.id}`
     //执行sql获取id
@@ -687,7 +704,7 @@ async function del(u,conn,where) {
         }
     }).filter(item => item !== undefined).flat().join(' and ')
     console.log(u)
-    where = where || u.on
+    where = where || u.where
     where = where ? `where ${where}` : ''
 
     let sql = `delete from "${clazz}" ${where}`
@@ -712,8 +729,11 @@ function isEmptyObject(obj) {
 }
 function wrapMethods(obj) {
         // 浏览器环境，增强方法并替换为新的逻辑
-        for (let key of Object.getOwnPropertyNames(Object.getPrototypeOf(obj))) {
-            if (typeof obj[key] === 'function' && key !== 'constructor') {
+    let list=Object.getOwnPropertyNames(Object.getPrototypeOf(obj))
+    let base_list=Object.getOwnPropertyNames(Object.getPrototypeOf(obj.constructor.prototype))
+    const mergedSet = new Set([...list, ...base_list]);
+    for (let key of mergedSet) {
+            if (typeof obj[key] === 'function' &&!['constructor','cols','cols'].includes(key )) {
                 // 替换方法
                 let className = obj.constructor.name.toLowerCase().replaceAll('_','')
                 obj[key] =async function (...args) {
@@ -721,6 +741,18 @@ function wrapMethods(obj) {
                     // 你可以在这里添加新的逻辑，而不是调用原来的方法
                     let {list,...data}=obj
                     let rsp= await post(className + '/' + key, data)
+                    if (Array.isArray(rsp)){
+                        if (rsp){
+                            obj.list=rsp
+                        }
+                    }else if (rsp&&typeof rsp=='object') {
+                        Object.keys(obj).forEach(k=>{
+                            console.log(k)
+                            if (rsp[k]){
+                                obj[k]=rsp[k]
+                            }
+                        })
+                    }
                     if (rsp?.list){
                         obj.list=rsp?.list
                     }
@@ -728,8 +760,14 @@ function wrapMethods(obj) {
                         obj.total=rsp?.total
                     }
                     console.log('end',obj)
+                    if (['add','update'].includes(key)){
+                        import('@/router/index').then((m=>m.to('gets')))
+                    }else if (key=='del'){
+                        let rsp= await post(className + '/gets', data)
+                        obj.list=Array.isArray(rsp)?rsp:rsp?.list
+                    }
                     return rsp
-                };
+                }
             }
         }
 }
@@ -770,3 +808,4 @@ export const post = async (url, data, header) => {
         throw error;
     }
 }
+
