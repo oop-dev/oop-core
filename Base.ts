@@ -1,5 +1,7 @@
 import {classMap,createInstance} from "./oapi";
 import {conf} from "./conf";
+import {reactive} from "vue"
+
 let Pool,pool: { connect: () => any; }
 export function initdb() {
     Pool= require('pg').Pool;
@@ -18,7 +20,10 @@ export class Base<T> {
     select: (keyof T)|string[]=[]
     on=''
     constructor() {
-        wrapMethods(this);
+        if (typeof window !== 'undefined') {
+            wrapMethods(this)
+            return reactive(this)
+        }
     }
     sel(...keys: ((keyof T)|'*')[]) {
         // 只允许传入当前类的有效属性名
@@ -705,7 +710,6 @@ function isEmptyObject(obj) {
     return Object.keys(obj).length === 0;
 }
 function wrapMethods(obj) {
-    if (typeof window !== 'undefined') {
         // 浏览器环境，增强方法并替换为新的逻辑
         for (let key of Object.getOwnPropertyNames(Object.getPrototypeOf(obj))) {
             if (typeof obj[key] === 'function' && key !== 'constructor') {
@@ -727,9 +731,6 @@ function wrapMethods(obj) {
                 };
             }
         }
-    }else {
-        console.log('backend')
-    }
 }
 export const post = async (url, data, header) => {
     try {
