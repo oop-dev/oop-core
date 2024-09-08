@@ -32,7 +32,7 @@ export class Base<T> {
     }
     wh(where:string|number|undefined):this {
         // 只允许传入当前类的有效属性名
-        where=typeof where=='number'?`id=${where}`:where
+        where=isPureNumber(where)?`id=${where}`:where
         this.where=isEmptyObject(where)?'':where
         return this
     }
@@ -50,7 +50,7 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            where=typeof where=='number'?`id=${where}`:where
+            where=isPureNumber(where)?`id=${where}`:where
             where=isEmptyObject(where)?'':where
             return await gets(o, conn, parseMap,where)
         }catch (e) {
@@ -64,7 +64,7 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            where=typeof where=='number'?`id=${where}`:where
+            where=isPureNumber(where)?`id=${where}`:where
             where=isEmptyObject(where)?'':where
             return await gets(this, conn, parseMap,where)
         }catch (e) {
@@ -82,7 +82,7 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            where=typeof where=='number'?`id=${where}`:where
+            where=isPureNumber(where)?`id=${where}`:where
             where=isEmptyObject(where)?'':where
             return await get(o, conn, parseMap,where)
         }catch (e) {
@@ -96,7 +96,7 @@ export class Base<T> {
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try{
             let parseMap = {}
-            where=typeof where=='number'?`id=${where}`:where
+            where=isPureNumber(where)?`id=${where}`:where
             where=isEmptyObject(where)?'':where
             return await get(this, conn, parseMap,where)
         }catch (e) {
@@ -740,6 +740,9 @@ function wrapMethods(obj) {
                     console.log(`New method logic for ${key} with arguments`, args);
                     // 你可以在这里添加新的逻辑，而不是调用原来的方法
                     let {list,...data}=obj
+                    if (args?.length>0){
+                        data=[data,args[0]]
+                    }
                     let rsp= await post(className + '/' + key, data)
                     if (Array.isArray(rsp)){
                         if (rsp){
@@ -809,3 +812,9 @@ export const post = async (url, data, header) => {
     }
 }
 
+function isPureNumber(str) {
+    if (typeof str=='number'){
+        return true
+    }
+    return /^\d+$/.test(str);
+}

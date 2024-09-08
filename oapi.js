@@ -117,18 +117,33 @@ export function createInstanceAndReq(className, json) {
     }
     //Object.setPrototypeOf(Class.prototype, NewBase(Base));//代理父类增删改查
     let obj = new Class()//代理子类，子类没重写增删改查，调用父类代理的增删改查,重写了调用子类
-
-    Object.entries(obj).forEach(([k, v]) => {
-        if (json[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
-            obj[k] = json?.[k].map(v => typeof v == 'object' ? createInstance(k, json[k]) : v)
-        } else if (json[k] && typeof v == 'object') {
-            obj[k] = createInstance(k, json[k])
-        } else if (json?.[k]) {
-            obj[k] = json?.[k]
-        }
-        delete json[k]
-    })
-    return {obj, req: json};
+    let req
+    if (Array.isArray(json)){
+        Object.entries(obj).forEach(([k, v]) => {
+            if (json[0][k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
+                obj[k] = json[0]?.[k].map(v => typeof v == 'object' ? createInstance(k, json[0][k]) : v)
+            } else if (json[0][k] && typeof v == 'object') {
+                obj[k] = createInstance(k, json[0][k])
+            } else if (json[0]?.[k]) {
+                obj[k] = json[0]?.[k]
+            }
+            delete json[0][k]
+        })
+        req=json[1]
+    }else {
+        Object.entries(obj).forEach(([k, v]) => {
+            if (json[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
+                obj[k] = json?.[k].map(v => typeof v == 'object' ? createInstance(k, json[k]) : v)
+            } else if (json[k] && typeof v == 'object') {
+                obj[k] = createInstance(k, json[k])
+            } else if (json?.[k]) {
+                obj[k] = json?.[k]
+            }
+            delete json[k]
+        })
+        req=json
+    }
+    return {obj, req: req};
 }
 function UUID() {
     const timestamp = Date.now().toString(36); // 使用36进制转换时间戳
