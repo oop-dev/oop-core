@@ -1,5 +1,4 @@
-import {classMap,createInstance} from "./oapi";
-import {conf} from "./conf";
+import {classMap,createInstance,conf} from "./oapi";
 import {reactive} from "vue"
 let Pool,pool: { connect: () => any; }
 export function initdb() {
