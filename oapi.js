@@ -28,11 +28,9 @@ export async function run(intercepter) {
             body: JSON.stringify({name,pwd,db}) // 将数据转换为JSON字符串
         })
         conf.pg= {dsn:dsn}
-        console.log(rsp)
     }
     initdb()
     await loadClass()
-    console.log(classMap)
 //migrate page and table
     migrate(classMap)
     Bun.serve({
@@ -165,7 +163,6 @@ export  function getJwt(token) {
 export async function jwtToken(obj) {
     const sign = await sha256(JSON.stringify(obj))
     let jwt={payload:obj,sign:sign}
-    console.log(base64(JSON.stringify(jwt)))
     return base64(JSON.stringify(jwt))
 }
 export async function verifyToken(token){

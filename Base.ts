@@ -73,6 +73,21 @@ export class Base<T> {
             console.log('release')
         }
     }
+
+    async getpage(page?,size?){
+        const conn = await pool.connect(); // 从连接池获取一个客户端连接
+        try{
+            let parseMap = {}
+            this.where=getwhere(this)
+            this.where=this.where+` order by id desc offset ${(page-1)*size} limit ${size}`
+            let list=await gets(this, conn, parseMap)
+            return {list:list.sort((a,b)=>b.id-a.id),total:await this.count()}
+        }catch (e) {
+            throw e
+        }finally {
+            conn.release(); // 释放客户端连接，返回连接池
+        }
+    }
     static async get(where?:string|number){
         let o=this
         if (this.constructor.name=='Function'){
@@ -88,7 +103,6 @@ export class Base<T> {
             throw e
         }finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
     }
     async get(where?:string|number){
@@ -102,7 +116,6 @@ export class Base<T> {
             throw e
         }finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
     }
 
@@ -116,14 +129,12 @@ export class Base<T> {
             await conn.query('BEGIN'); // 开始事务
             await add(null, null, o, conn)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
             console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -133,14 +144,11 @@ export class Base<T> {
             await conn.query('BEGIN'); // 开始事务
             await add(null, null, this, conn)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -151,27 +159,27 @@ export class Base<T> {
         }
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
+            where=isPureNumber(where)?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
             await conn.query('BEGIN'); // 开始事务
             await update(null, null, o, conn,where)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
     async update(where?:string){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
+            where=isPureNumber(where)?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
             await conn.query('BEGIN'); // 开始事务
-            await update(null, null, this, conn)
+            await update(null, null, this, conn,where)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
             console.log('Transaction rolled back due to error:', err);
@@ -189,8 +197,10 @@ export class Base<T> {
         }
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
+            where=isPureNumber(where)?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
             await conn.query('BEGIN'); // 开始事务
-            await del( o, conn,isEmptyObject(where)?undefined:where)
+            await del( o, conn,where)
             await conn.query('COMMIT'); // 提交事务
             console.log('Transaction committed successfully');
         } catch (err) {
@@ -206,8 +216,10 @@ export class Base<T> {
     async del(where?:string){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
+            where=isPureNumber(where)?`id=${where}`:where
+            where=isEmptyObject(where)?'':where
             await conn.query('BEGIN'); // 开始事务
-            await del( this, conn,isEmptyObject(where)?undefined:where)
+            await del( this, conn,where)
             await conn.query('COMMIT'); // 提交事务
             console.log('Transaction committed successfully');
         } catch (err) {
@@ -418,33 +430,26 @@ async function get(u, conn, parseMap,where?) {
     return list[0]
 }
 async function gets(u, conn, parseMap,where?) {
-    console.log('where,',where)
     let clazz = u.constructor.name.toLowerCase()
     parseMap[clazz] = true
     where=where|| Object.entries(u).filter(([key, value]) =>!base[key]&&value && typeof value!='object').map(([k, v]) => {
-        console.log('kkkkk',k)
         if (typeof v != 'object') {
             return `"${clazz}".${k}='${v}'`
         } else if (u.select.includes(k)){
             return getwhere(v)
         }
     }).filter(item => item !== undefined).flat().join(' and ')
-    where=where&&!where.trim().startsWith('offset')?`where ${where}`:where
-    console.log('where----------',JSON.stringify(where))
-    console.log('sel----------',JSON.stringify(u.select))
+    where=where&&!startsWithOrderByOrLimit(u.where)?`where ${where}`:where
     if (!u.select||u?.select?.length==0){u.select=['*']}
     let sel = Object.entries(u).filter(([k, v]) =>u.select&&!base[k]&& !parseMap[k]).map(([k, v]) => {
-        console.log(k,v)
         if (typeof v != 'object'&&(u.select.includes(k)|u.select.includes('*'))) {
             console.log(typeof v,k,v)
             return `"${clazz}".${k} as ${clazz}_${k}`
         } else if (u.select.includes(k)) {
             let s=getsel(createInstance(k,v), parseMap)
-            console.log('roles----------',s)
             return s
         }
     }).filter(item => item !== undefined)
-    console.log('sel----------',JSON.stringify(u.select))
 
     let join = Object.entries(u).filter(([key, value]) =>u.select&&u.select.includes(key)&&value&& key!='list'&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = k
@@ -465,16 +470,18 @@ async function gets(u, conn, parseMap,where?) {
         let where_main=u.where&&!u.where.trim().startsWith('offset')?`where ${u.where}`:where+u.where
         main=`(select * from "${clazz}" ${where_main}) as "${clazz}"`
     }else if (u.where) {
-        where=u.where&&!u.where.trim().startsWith('offset')?`where ${u.where}`:u.where
+        where=u.where&&!startsWithOrderByOrLimit(u.where)?`where ${u.where}`:u.where
     }
     main=main||`"${clazz}"`
     let sql = `select ${sel} from ${main} ${join} ${where}`
     console.log('sql',sql)
     let rs = await conn.query(sql)
-    console.log(rs.rows)
     return nest(rs.rows, clazz)
 }
-
+function startsWithOrderByOrLimit(str) {
+    const regex = /^(order by|offset)/i;
+    return regex.test(str.trim());
+}
 function getsel(u, parseMap) {
     console.log('select----------',u)
     let clazz = u.constructor.name.toLowerCase()
@@ -739,9 +746,6 @@ function wrapMethods(obj) {
                     console.log(`New method logic for ${key} with arguments`, args);
                     // 你可以在这里添加新的逻辑，而不是调用原来的方法
                     let {list,...data}=obj
-                    if (args?.length>0){
-                        data=[data,args[0]]
-                    }
                     let rsp= await post(className + '/' + key, [data,...args])
                     if (Array.isArray(rsp)){
                         if (rsp){

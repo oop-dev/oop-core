@@ -1,6 +1,6 @@
 {
   "name": "oop-core",
-  "version": "1.0.67",
+  "version": "1.0.78",
   "module": "index.ts",
   "type": "module",
   "devDependencies": {

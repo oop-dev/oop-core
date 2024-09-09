@@ -24,9 +24,9 @@ export function migrate(classMap) {
     })
     console.log(parseMap)
     Promise.all(Object.values(parseMap).map(sql=>migrateSql(sql))).then(()=>{
-        migrateSql(`insert into "permission" (id,name)values (1,'*') ON CONFLICT (id) DO NOTHING`)
-        migrateSql(`insert into "role" (id,name, permission)values (1,'admin','{1}') ON CONFLICT (id) DO NOTHING`)
-        migrateSql(`insert into "user" (id,name, pwd, role)values (1,'admin','ebbe8eaa32232299659e8e49d942dc72fd835daf37f43f7cca6112ee7c8e5db2','{1}') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`insert into "permission" (name)values ('*') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`insert into "role" (name, permission)values ('admin','{1}') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`insert into "user" (name, pwd, role)values ('admin','ebbe8eaa32232299659e8e49d942dc72fd835daf37f43f7cca6112ee7c8e5db2','{1}') ON CONFLICT (id) DO NOTHING`)
     })
 }
 function gen(u:Base<any>,pname,tp) {
@@ -74,19 +74,18 @@ async function gen_get(o,fn) {
     selclass=selclass.map(x=>{
         selMap[x]=x
         return `import {${upper(x)}} from "../../../api/${upper(x)}"
-let ${x}=New(${upper(x)})
-`
-    }).join('')
+let ${x}=new ${upper(x)}()
+${x}.gets()`}).join('')
 
     console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
-    const page = `
-    <script setup lang="ts">import { New } from "../../../VueProxy";
+    const page = `<script setup lang="ts">
 import {${name}} from "../../../api/${name}";
 import FormTable from "@/components/FormTable.vue";
 import FormTableItem from "@/components/FormTableItem.vue";
 import { useRoute } from 'vue-router';
-let o=New(${name},useRoute().query.id)
+let o=new ${name}()
+o.get(useRoute().query.id)
 ${selclass}
 let selMap={${Object.entries(selMap).map(([k,v])=>`${k}:${v}`)}}
 </script>
@@ -157,12 +156,11 @@ async function gen_gets(o,fn) {
     let f=`src/views/${name.toLowerCase()}/${fn}.vue`
     if (await Bun.file(f).exists())return
     const page = `<script setup lang="ts">
-import {onMounted, ref} from "vue";
 import {${name}} from "../../../api/${name}";
-import {New} from "../../../VueProxy";
-let o=New(${name})
-o.page=1
-o.size=1
+import {to} from "@/router";
+let o=new ${name}()
+let size=10
+o.getpage(1,size)
 </script>
 <template>
   <view v-for="{col,tag,filter} in o.cols()">
@@ -178,16 +176,16 @@ o.size=1
     />
     <el-table-column align="right">
       <template #header>
-        <el-button size="small" @click="o.add()">新增</el-button>
+        <el-button size="small" @click="to('add')">新增</el-button>
       </template>
       <template #default="scope">
-        <el-button size="small"  @click="o.get(scope.row.id)">详情</el-button>
-        <el-button size="small" @click="o.update(scope.row.id)">修改</el-button>
+        <el-button size="small"  @click="to('get',scope.row.id)">详情</el-button>
+        <el-button size="small" @click="to('update',scope.row.id)">修改</el-button>
         <el-button size="small" type="danger" @click="o.del(\`id=\${scope.row.id}\`)">删除</el-button>
       </template>
     </el-table-column>    
   </el-table>
-  <el-pagination  @current-change="page=>{o.page=page;o.gets()}" background layout="prev, pager, next" :page-size="10" :total="1000" />
+  <el-pagination  @current-change="page=>{o.getpage(page,size)}" background layout="prev, pager, next" :page-size="size" :total="o.total" />
 </template>
 `
     await Bun.write(f, page);
@@ -206,20 +204,19 @@ async function gen_update(o,fn) {
     selclass=selclass.map(x=>{
         selMap[x]=x
         return `import {${upper(x)}} from "../../../api/${upper(x)}"
-let ${x}=New(${upper(x)})
-`
-    }).join('')
+let ${x}=new ${upper(x)}()
+${x}.gets()`}).join('')
 
     console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
-    const page = `
-    <script setup lang="ts">
+    const page = `<script setup lang="ts">
 import { New } from "../../../VueProxy";
 import {${name}} from "../../../api/${name}";
 import FormTable from "@/components/FormTable.vue";
 import FormTableItem from "@/components/FormTableItem.vue";
 import { useRoute } from 'vue-router';
-let o=New(${name},useRoute().query.id)
+let o=new ${name}()
+o.get(useRoute().query.id)
 ${selclass}
 let selMap={${Object.entries(selMap).map(([k,v])=>`${k}:${v}`)}}
 </script>
@@ -298,19 +295,17 @@ async function gen_add(o,fn) {
     selclass=selclass.map(x=>{
         selMap[x]=x
         return `import {${upper(x)}} from "../../../api/${upper(x)}"
-let ${x}=New(${upper(x)})
-`
-    }).join('')
+let ${x}=new ${upper(x)}()
+${x}.gets()
+`}).join('')
 
     console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
-    const page = `
-    <script setup lang="ts">
-import { New } from "../../../VueProxy";
+    const page = `<script setup lang="ts">
 import {${name}} from "../../../api/${name}";
 import FormTable from "@/components/FormTable.vue";
 import FormTableItem from "@/components/FormTableItem.vue";
-let o=New(${name})
+let o=new ${name}()
 ${selclass}
 let selMap={${Object.entries(selMap).map(([k,v])=>`${k}:${v}`)}}
 </script>
