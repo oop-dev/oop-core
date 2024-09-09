@@ -345,7 +345,7 @@ export function Col(options) {
         });
     };
 }
-export function Menu(...name:string[]) {
+export function Menu(name:string) {
     return function (target,fn) {
         // 直接将 menu 属性添加到类构造函数上
         Object.defineProperty(target, 'menu', {
@@ -429,7 +429,7 @@ async function gets(u, conn, parseMap,where?) {
             return getwhere(v)
         }
     }).filter(item => item !== undefined).flat().join(' and ')
-    where=where&&!where.includes('limit')?`where ${where}`:where
+    where=where&&!where.trim().startsWith('offset')?`where ${where}`:where
     console.log('where----------',JSON.stringify(where))
     console.log('sel----------',JSON.stringify(u.select))
     if (!u.select||u?.select?.length==0){u.select=['*']}
@@ -462,10 +462,10 @@ async function gets(u, conn, parseMap,where?) {
 
     let main=''
     if (join){//修改，两个where要同时判断，不是二选一
-        let where_main=u.where&&!u.where.includes('limit')?`where ${u.where}`:where+u.where
+        let where_main=u.where&&!u.where.trim().startsWith('offset')?`where ${u.where}`:where+u.where
         main=`(select * from "${clazz}" ${where_main}) as "${clazz}"`
     }else if (u.where) {
-        where=u.where&&!u.where.includes('limit')?`where ${u.where}`:u.where
+        where=u.where&&!u.where.trim().startsWith('offset')?`where ${u.where}`:u.where
     }
     main=main||`"${clazz}"`
     let sql = `select ${sel} from ${main} ${join} ${where}`
@@ -742,7 +742,7 @@ function wrapMethods(obj) {
                     if (args?.length>0){
                         data=[data,args[0]]
                     }
-                    let rsp= await post(className + '/' + key, data)
+                    let rsp= await post(className + '/' + key, [data,...args])
                     if (Array.isArray(rsp)){
                         if (rsp){
                             obj.list=rsp

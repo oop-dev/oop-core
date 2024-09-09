@@ -47,14 +47,14 @@ export async function run(intercepter) {
                     let rsp=await intercepter(r)
                     if (rsp){return rsp}
                 }
-                let data = await r.json()
+                let data = await r?.json()||{}
                 //data.rid=rid 设置到meta里面
                 const path = new URL(r.url).pathname;
                 let [a, clazz, fn] = path.split('/')
                 //console.log(rid,'req:',data)
-                let {obj, req} = createInstanceAndReq(clazz, data)
+                let {obj, args} = createInstanceAndReq(clazz, data)
                 if (!obj[fn])throw 'method not found'
-                let rsp = await obj[fn](req,r)
+                let rsp = await obj[fn](...args,r)
                 if (rsp instanceof Response){
                     return  rsp
                 }
@@ -105,8 +105,6 @@ export function createInstance(className, json) {
             obj[k] = v.map(v => createInstance(k, json[k]))
         } else if (json[k] && typeof v == 'object') {
             obj[k] = createInstance(k, json[k])
-        } else if (json?.[k]) {
-            obj[k] = json?.[k]
         }
     })
     obj['select'] = json?.['select']
@@ -120,19 +118,20 @@ export function createInstanceAndReq(className, json) {
     }
     //Object.setPrototypeOf(Class.prototype, NewBase(Base));//代理父类增删改查
     let obj = new Class()//代理子类，子类没重写增删改查，调用父类代理的增删改查,重写了调用子类
-    let req
+    let args
     if (Array.isArray(json)){
+        const [data, ...params] = json; // 使用扩展运算符来获取剩余元素
         Object.entries(obj).forEach(([k, v]) => {
-            if (json[0][k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
-                obj[k] = json[0]?.[k].map(v => typeof v == 'object' ? createInstance(k, json[0][k]) : v)
-            } else if (json[0][k] && typeof v == 'object') {
-                obj[k] = createInstance(k, json[0][k])
-            } else if (json[0]?.[k]) {
-                obj[k] = json[0]?.[k]
+            if (data[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
+                obj[k] = data?.[k].map(v => typeof v == 'object' ? createInstance(k, data[k]) : v)
+            } else if (data[k] && typeof v == 'object') {
+                obj[k] = createInstance(k, data[k])
+            } else if (data?.[k]) {
+                obj[k] = data?.[k]
             }
-            delete json[0][k]
+            delete data[k]
         })
-        req=json[1]
+        args=params?.[0]?params:[data]
     }else {
         Object.entries(obj).forEach(([k, v]) => {
             if (json[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
@@ -144,9 +143,9 @@ export function createInstanceAndReq(className, json) {
             }
             delete json[k]
         })
-        req=json
+        args=[json]
     }
-    return {obj, req: req};
+    return {obj, args: args};
 }
 function UUID() {
     const timestamp = Date.now().toString(36); // 使用36进制转换时间戳
@@ -160,8 +159,8 @@ function toml(path) {
     const tomlFileContent = fs.readFileSync(`${path}conf.toml`, 'utf-8');
     return  toml.parse(tomlFileContent);
 }
-export async function getJwt(token) {
-    return JSON.parse(atob(token))
+export  function getJwt(token) {
+    return JSON.parse(deBase64(token))
 }
 export async function jwtToken(obj) {
     const sign = await sha256(JSON.stringify(obj))
