@@ -7,3 +7,14 @@ async function intercepter(r) {
         return Rsp(401, 'auth err')
     }
 }
+function has(perm) {
+    if (perm=='*'){
+        return true
+    }
+    let user=JSON.parse(localStorage.getItem('user'))
+    let permissions=user?.role.flatMap(r=>r.permission)
+    console.log('permissions',permissions)
+    let has=permissions?.some(p =>['*',perm].includes(p.name))
+    console.log('perm',perm,'has',has)
+    return has
+}

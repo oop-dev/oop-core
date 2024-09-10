@@ -56,7 +56,6 @@ export class Base<T> {
             throw e
         }finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
     }
     async gets(where?:string|number){
@@ -70,7 +69,6 @@ export class Base<T> {
             throw e
         }finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
     }
 
@@ -131,7 +129,6 @@ export class Base<T> {
             await conn.query('COMMIT'); // 提交事务
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
@@ -152,7 +149,7 @@ export class Base<T> {
         }
         return null
     }
-    static async update(where?:string,data?){
+    static async update(where?:string|number,data?){
         let o=this
         if (this.constructor.name=='Function'){
             o=createInstance(this.name.toLowerCase(),data)
@@ -172,7 +169,7 @@ export class Base<T> {
         }
         return null
     }
-    async update(where?:string){
+    async update(where?:string|number){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
             where=isPureNumber(where)?`id=${where}`:where
@@ -182,15 +179,13 @@ export class Base<T> {
             await conn.query('COMMIT'); // 提交事务
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
-    static async del(where?:string){
+    static async del(where?:string|number){
         let o=this
         if (this.constructor.name=='Function'){
             o=new classMap[this.name.toLowerCase()]()
@@ -202,18 +197,15 @@ export class Base<T> {
             await conn.query('BEGIN'); // 开始事务
             await del( o, conn,where)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
-    async del(where?:string){
+    async del(where?:string|number){
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
             where=isPureNumber(where)?`id=${where}`:where
@@ -221,14 +213,11 @@ export class Base<T> {
             await conn.query('BEGIN'); // 开始事务
             await del( this, conn,where)
             await conn.query('COMMIT'); // 提交事务
-            console.log('Transaction committed successfully');
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -241,16 +230,13 @@ export class Base<T> {
         where=where?`where ${where}`:''
         const conn = await pool.connect(); // 从连接池获取一个客户端连接
         try {
-            console.log(`select count(*) from ${clazz} ${where}`)
             let rsp=await conn.query(`select count(*) from "${clazz}" ${where}`); // 提交事务
             return parseInt(rsp.rows[0].count)
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -263,11 +249,9 @@ export class Base<T> {
             return parseInt(rsp.rows[0].count)
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -278,11 +262,9 @@ export class Base<T> {
             return rsp
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -293,11 +275,9 @@ export class Base<T> {
             return rsp
         } catch (err) {
             await conn.query('ROLLBACK'); // 事务回滚
-            console.log('Transaction rolled back due to error:', err);
             throw err
         } finally {
             conn.release(); // 释放客户端连接，返回连接池
-            console.log('release')
         }
         return null
     }
@@ -371,12 +351,10 @@ export function Menu(name:string) {
 
 export function log() {
     return function () {
-        console.log('log')
     };
 }
 
 function nest(data, clazz) {
-    console.log(data)
     const m = {};
     const rootMap = {};
     data.forEach(item => {
@@ -401,18 +379,13 @@ function create(clazz, row, m,parseMap) {
     Object.entries(obj).filter(([k,v])=>!base[k]).forEach(([k, v]) => {
         if (v&&Array.isArray(v)&&!parseMap[k]) {//解决重复赋值和循环依赖
             let obj = create(k, row, m,parseMap)
-            console.log(parseMap)
             if (row[k+'_id']&&!v.some(role => role?.id == row[`${k}_id`])) {//数组不需要处理循环依赖
-                console.log(k,v)
                 v.push(obj);
             }else {
                 obj[k]=null
             }
         } else if (v&&typeof v == 'object') {//解决重复赋值和循环依赖
-            //console.log(parseMap[k]?`循环依赖${k}`:`${k},raer`)
-            console.log('has',row[k+'_id'])
             if (row[k+'_id']&&!v?.id&&!parseMap[k]){
-                //console.log(parseMap[k]?`w循环依赖${k}`:`${k},w raer`)
                 obj[k]=create(k, row, m,parseMap)
             }else {
                 obj[k]=null
@@ -443,14 +416,12 @@ async function gets(u, conn, parseMap,where?) {
     if (!u.select||u?.select?.length==0){u.select=['*']}
     let sel = Object.entries(u).filter(([k, v]) =>u.select&&!base[k]&& !parseMap[k]).map(([k, v]) => {
         if (typeof v != 'object'&&(u.select.includes(k)|u.select.includes('*'))) {
-            console.log(typeof v,k,v)
             return `"${clazz}".${k} as ${clazz}_${k}`
         } else if (u.select.includes(k)) {
             let s=getsel(createInstance(k,v), parseMap)
             return s
         }
     }).filter(item => item !== undefined)
-
     let join = Object.entries(u).filter(([key, value]) =>u.select&&u.select.includes(key)&&value&& key!='list'&&typeof value == 'object'&&!parseMap[key]).map(([k, v]) => {
         let son = k
         let rootjoin=''
@@ -483,7 +454,6 @@ function startsWithOrderByOrLimit(str) {
     return regex.test(str.trim());
 }
 function getsel(u, parseMap) {
-    console.log('select----------',u)
     let clazz = u.constructor.name.toLowerCase()
     if (!u.select||u?.select?.length==0){u.select=['*']}
     let sel = Object.entries(u).filter(([k, v]) =>!base[k]&&!parseMap[k]).map(([k, v]) => {
@@ -527,7 +497,6 @@ function getjoin(u,parseMap) {
     return where
 }*/
 async function get1(u: Base, conn, parseMap) {
-    console.log(u)
     let clazz = u.constructor.name.toLowerCase()
     parseMap[clazz] = true
     let where = Object.entries(u).filter(([key, value]) => value && typeof value != 'object' && key != 'filter').map(([k, v]) => {
@@ -540,7 +509,6 @@ async function get1(u: Base, conn, parseMap) {
     let groups = [`${clazz}.id`]
     let sel = Object.entries(u).map(([k, v]) => {
         if (Array.isArray(v)) {
-            console.log(k)
             return `jsonb_agg(${getobjSql(new classMap[k], parseMap)}) as ${k}`
         } else if (typeof v == 'object') {
             groups.push(`${v.constructor.name.toLowerCase()}.id`)
@@ -638,7 +606,6 @@ async function add(pname, pid, u, conn) {
         return k || 'null'
     })
     //执行sql获取id
-    console.log(`insert into "${clazz}" ("${keys}") values (${values})`)
     let sql=`insert into "${clazz}" (${keys})values (${values}) RETURNING id`
     console.log(sql)
     let result = await conn.query(sql)
@@ -676,14 +643,11 @@ async function update(pname, pid, u,conn,where?) {
             }
         }).flat().join(' and ')*/
     where = u.where||where
-    console.log('where',where)
     where = where ?'where '+where:`where id=${u.id}`
     //执行sql获取id
     let sql=`update "${clazz}" set ${values} ${where}`
-    console.log(sql)
     let result = await conn.query(sql)
     let parentId = Math.random()
-    console.log('sub',sub)
     sub.forEach(v => Array.isArray(v) ? v.forEach(v => update(clazz, parentId, v)) : update(clazz, parentId, v))
 }
 
@@ -702,24 +666,20 @@ function getwhere(u) {//where和on都支持
 async function del(u,conn,where) {
     let clazz = u.constructor.name.toLowerCase()
     where=where|| Object.entries(u).filter(([key, value]) =>!base[key]&&value && typeof value!='object').map(([k, v]) => {
-        console.log('kkkkk',k)
         if (typeof v != 'object') {
             return `"${clazz}".${k}='${v}'`
         } else if (u.select.includes(k)){
             return getwhere(v)
         }
     }).filter(item => item !== undefined).flat().join(' and ')
-    console.log(u)
     where = where || u.where
     where = where ? `where ${where}` : ''
 
     let sql = `delete from "${clazz}" ${where}`
-    console.log('del',sql)
     let result = await conn.query(sql)
     return result
 }
 export async function migrateSql(sql:string) {
-    console.log(sql)
     const conn = await pool.connect(); // 从连接池获取一个客户端连接
     try {
         await conn.query(sql)
@@ -743,9 +703,8 @@ function wrapMethods(obj) {
                 // 替换方法
                 let className = obj.constructor.name.toLowerCase().replaceAll('_','')
                 obj[key] =async function (...args) {
-                    console.log(`New method logic for ${key} with arguments`, args);
                     // 你可以在这里添加新的逻辑，而不是调用原来的方法
-                    let {list,...data}=obj
+                    let {list,total,...data}=obj
                     let rsp= await post(className + '/' + key, [data,...args])
                     if (Array.isArray(rsp)){
                         if (rsp){
@@ -753,7 +712,6 @@ function wrapMethods(obj) {
                         }
                     }else if (rsp&&typeof rsp=='object') {
                         Object.keys(obj).forEach(k=>{
-                            console.log(k)
                             if (rsp[k]){
                                 obj[k]=rsp[k]
                             }
@@ -765,7 +723,6 @@ function wrapMethods(obj) {
                     if (rsp?.total){
                         obj.total=rsp?.total
                     }
-                    console.log('end',obj)
                     if (['add','update'].includes(key)){
                         import('@/router/index').then((m=>m.to('gets')))
                     }else if (key=='del'){
@@ -800,7 +757,6 @@ export const post = async (url, data, header) => {
             // 如果响应状态不是 2xx，抛出错误
             const errorData = await response.json();
             if (response.status === 401) {
-                console.log('401---');
                 // 在 401 错误时重定向到登录页
                 window.location.href = '/login';
             }
@@ -810,7 +766,6 @@ export const post = async (url, data, header) => {
         return responseData;
 
     } catch (error) {
-        console.log('res-----', error);
         throw error;
     }
 }

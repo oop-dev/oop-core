@@ -1,6 +1,7 @@
 import {classMap} from "./oapi";
 import {Base} from "./Base";
 import {migrateSql} from "./Base";
+import {useRoute} from "vue-router";
 let base={list:true,on:true,select:true,where:true}
 let parseMap={}
 export function migrate(classMap) {
@@ -58,6 +59,7 @@ function gen(u:Base<any>,pname,tp) {
     }).filter(v=>u!=undefined||u!=undefined)
     if (pname){
         body.push(`"${pname}" integer`)
+        body=[...new Set(body)]
     }
     let sql=`create table if not exists "${clazz}" (${body});`
     parseMap[clazz]=sql
@@ -181,7 +183,7 @@ o.getpage(1,size)
       <template #default="scope">
         <el-button size="small"  @click="to('get',scope.row.id)">详情</el-button>
         <el-button size="small" @click="to('update',scope.row.id)">修改</el-button>
-        <el-button size="small" type="danger" @click="o.del(\`id=\${scope.row.id}\`)">删除</el-button>
+        <el-button size="small" type="danger" @click="o.del(scope.row.id)">删除</el-button>
       </template>
     </el-table-column>    
   </el-table>

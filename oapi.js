@@ -91,7 +91,7 @@ async function loadClass() {
     }
 }
 
-export function createInstance(className, json) {
+export function createInstance(className, data) {
     const Class = classMap[className];
     if (!Class) {
         throw new Error(`${className} not found`);
@@ -99,13 +99,15 @@ export function createInstance(className, json) {
     let obj = new Class()//代理子类，子类没重写增删改查，调用父类代理的增删改查,重写了调用子
 
     Object.entries(obj).forEach(([k, v]) => {
-        if (json[k] && Array.isArray(v)) {
-            obj[k] = v.map(v => createInstance(k, json[k]))
-        } else if (json[k] && typeof v == 'object') {
-            obj[k] = createInstance(k, json[k])
+        if (data[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
+            obj[k] = data?.[k].map(v => typeof v == 'object' ? createInstance(k, v) : v)
+        } else if (data[k] && typeof v == 'object') {
+            //是id直接赋值
+            obj[k] =typeof data[k]=='object'?createInstance(k, data[k]):data[k]
+        } else if (data?.[k]) {
+            obj[k] = data?.[k]
         }
     })
-    obj['select'] = json?.['select']
     return obj;
 }
 
@@ -121,9 +123,10 @@ export function createInstanceAndReq(className, json) {
         const [data, ...params] = json; // 使用扩展运算符来获取剩余元素
         Object.entries(obj).forEach(([k, v]) => {
             if (data[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
-                obj[k] = data?.[k].map(v => typeof v == 'object' ? createInstance(k, data[k]) : v)
+                obj[k] = data?.[k].map(v => typeof v == 'object' ? createInstance(k, v) : v)
             } else if (data[k] && typeof v == 'object') {
-                obj[k] = createInstance(k, data[k])
+                //是id直接赋值
+                obj[k] =typeof data[k]=='object'?createInstance(k, data[k]):data[k]
             } else if (data?.[k]) {
                 obj[k] = data?.[k]
             }
