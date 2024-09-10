@@ -682,7 +682,7 @@ async function del(u,conn,where) {
 export async function migrateSql(sql:string) {
     const conn = await pool.connect(); // 从连接池获取一个客户端连接
     try {
-        await conn.query(sql)
+        return await conn.query(sql)
     } catch (err) {
         throw err
     } finally {

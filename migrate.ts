@@ -25,9 +25,12 @@ export function migrate(classMap) {
     })
     console.log(parseMap)
     Promise.all(Object.values(parseMap).map(sql=>migrateSql(sql))).then(()=>{
-        migrateSql(`insert into "permission" (name)values ('*') ON CONFLICT (id) DO NOTHING`)
-        migrateSql(`insert into "role" (name, permission)values ('admin','{1}') ON CONFLICT (id) DO NOTHING`)
-        migrateSql(`insert into "user" (name, pwd, role)values ('admin','ebbe8eaa32232299659e8e49d942dc72fd835daf37f43f7cca6112ee7c8e5db2','{1}') ON CONFLICT (id) DO NOTHING`)
+        migrateSql(`SELECT EXISTS(SELECT 1 FROM "user" WHERE id = 1)`).then(rs=>{
+            if (rs.rows[0].exists){return}
+            migrateSql(`insert into "permission" (name)values ('*')`)
+            migrateSql(`insert into "role" (name, permission)values ('admin','{1}')`)
+            migrateSql(`insert into "user" (name, pwd, role)values ('admin','ebbe8eaa32232299659e8e49d942dc72fd835daf37f43f7cca6112ee7c8e5db2','{1}')`)
+        })
     })
 }
 function gen(u:Base<any>,pname,tp) {
