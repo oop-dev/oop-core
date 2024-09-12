@@ -7,6 +7,7 @@ let parseMap={}
 export function migrate(classMap) {
     Object.entries(classMap).forEach(([k,v])=>{
         let o=new classMap[k]()
+        if (!o.col){return }
         gen(o,null,0)//数据库类表迁移
         //迁移页面
         gen_gets(o,'gets')

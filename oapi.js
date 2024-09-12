@@ -1,8 +1,8 @@
 import {initdb} from "./Base";
 let readdir, migrateSql ,Base ,migrate ,config ,path;
 if (typeof window=='undefined'){
-    //path=import.meta.path.split('node_modules')[0]
-    path='./'
+    path=import.meta.path.split('node_modules')[0]
+    //path='./'
     readdir = require('node:fs/promises').readdir;
     migrateSql = require('./Base.ts').migrateSql;
     Base = require('./Base').Base;
