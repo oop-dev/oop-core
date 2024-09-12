@@ -15,7 +15,7 @@ export class Base<T> {
     @Col({tag:'id',type:'',filter:true,show:'0111'})//1111代表增删改查是否显示
     id=0;
     list:T[]
-    select: (keyof T)|string[]=[]
+    select: string[]=[]
     where: string | undefined =''
     constructor() {
         if (typeof window !== 'undefined') {
@@ -24,9 +24,43 @@ export class Base<T> {
             return obj
         }
     }
-    sel(...keys: ((keyof T)|'*')[]) {
+   static sel(...keys: ((keyof T)|{})[]) {
+       let clazz=this.name.toLowerCase()
+        let obj=new classMap[clazz]()
         // 只允许传入当前类的有效属性名
-        this.select = keys;
+       keys.forEach(x=>{
+           if (typeof x=="object"){
+               let clazz=x.constructor.name.toLowerCase()
+               obj[clazz]=x
+               obj.select.push(clazz)
+               return
+           }
+           if (x=='**'){
+               Object.keys(obj).filter(k=>!base[k]).forEach(k=>{
+                   if (typeof obj[k]=='object'){
+                       obj[k]=new classMap[clazz]()
+                       obj.select.push(k)
+                   }else {
+                       obj.select.push(k)
+                   }
+               })
+               return
+           }
+           obj.select.push(x)
+       })
+       return obj
+    }
+    sel(...keys: ((keyof T)|{})[]) {
+        // 只允许传入当前类的有效属性名
+        keys.forEach(x=>{
+            if (typeof x=="object"){
+                let clazz=x.constructor.name.toLowerCase()
+                this[clazz]=x
+                this.select.push(clazz)
+                return
+            }
+            this.select.push(x)
+        })
         return this
     }
     wh(where:string|number|undefined):this {
@@ -399,6 +433,7 @@ function create(clazz, row, m,parseMap) {
 
 let base={list:true,on:true,select:true,where:true}
 async function get(u, conn, parseMap,where?) {
+    console.log(u)
     let list=await await gets(u, conn, parseMap,where)
     return list[0]
 }
@@ -418,7 +453,7 @@ async function gets(u, conn, parseMap,where?) {
         if (typeof v != 'object'&&(u.select.includes(k)|u.select.includes('*'))) {
             return `"${clazz}".${k} as ${clazz}_${k}`
         } else if (u.select.includes(k)) {
-            let s=getsel(createInstance(k,v), parseMap)
+            let s=getsel(v, parseMap)
             return s
         }
     }).filter(item => item !== undefined)

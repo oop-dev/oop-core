@@ -1,8 +1,8 @@
 import {initdb} from "./Base";
 let readdir, migrateSql ,Base ,migrate ,config ,path;
 if (typeof window=='undefined'){
-    path=import.meta.path.split('node_modules')[0]
-    //path='./'
+    //path=import.meta.path.split('node_modules')[0]
+    path='./'
     readdir = require('node:fs/promises').readdir;
     migrateSql = require('./Base.ts').migrateSql;
     Base = require('./Base').Base;
@@ -45,7 +45,10 @@ export async function run(intercepter) {
                     let rsp=await intercepter(r)
                     if (rsp){return rsp}
                 }
-                let data = await r?.json()||{}
+                let data={}
+                if (r.method == "POST") {
+                    data = await r?.json()||{}
+                }
                 //data.rid=rid 设置到meta里面
                 const path = new URL(r.url).pathname;
                 let [a, clazz, fn] = path.split('/')
@@ -99,9 +102,9 @@ export function createInstance(className, data) {
     let obj = new Class()//代理子类，子类没重写增删改查，调用父类代理的增删改查,重写了调用子
 
     Object.entries(obj).forEach(([k, v]) => {
-        if (data[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
+        if (data?.[k] && Array.isArray(v)) {//可能是对象数组，可能是普通数组
             obj[k] = data?.[k].map(v => typeof v == 'object' ? createInstance(k, v) : v)
-        } else if (data[k] && typeof v == 'object') {
+        } else if (data?.[k] && typeof v == 'object') {
             //是id直接赋值
             obj[k] =typeof data[k]=='object'?createInstance(k, data[k]):data[k]
         } else if (data?.[k]) {

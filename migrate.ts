@@ -23,7 +23,6 @@ export function migrate(classMap) {
                     }
                 })*/
     })
-    console.log(parseMap)
     Promise.all(Object.values(parseMap).map(sql=>migrateSql(sql))).then(()=>{
         migrateSql(`SELECT EXISTS(SELECT 1 FROM "user" WHERE id = 1)`).then(rs=>{
             if (rs.rows[0].exists){return}
@@ -82,7 +81,6 @@ async function gen_get(o,fn) {
 let ${x}=new ${upper(x)}()
 ${x}.gets()`}).join('')
 
-    console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
     const page = `<script setup lang="ts">
 import {${name}} from "../../../api/${name}";
@@ -212,7 +210,6 @@ async function gen_update(o,fn) {
 let ${x}=new ${upper(x)}()
 ${x}.gets()`}).join('')
 
-    console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
     const page = `<script setup lang="ts">
 import { New } from "../../../VueProxy";
@@ -304,7 +301,6 @@ let ${x}=new ${upper(x)}()
 ${x}.gets()
 `}).join('')
 
-    console.log('selclass',selclass)
     let nameLow=name.toLowerCase()
     const page = `<script setup lang="ts">
 import {${name}} from "../../../api/${name}";
@@ -412,6 +408,5 @@ function listAsyncFunctionNames(obj: object): string[] {
             }
         }
     }
-    console.log(asyncFunctionNames)
     return asyncFunctionNames;
 }
