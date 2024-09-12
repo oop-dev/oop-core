@@ -41,10 +41,12 @@ function gen(u:Base<any>,pname,tp) {
     let body=[]
 
     body=Object.entries(u).filter(([k, v]) =>{
-        if (u.col(k)?.link=='1n'){
+        if (base[k]){return false}
+        if (typeof v=='object'&&!['n1','nn'].includes(u.col(k)?.link)){
             gen(new classMap[k](),clazz,1)
+            return false
         }
-        return !base[k]&&u.col(k)?.link!='1n'
+        return true
     }).map(([k,v])=> {
         if (k == 'id') {
             return `id SERIAL PRIMARY KEY`
