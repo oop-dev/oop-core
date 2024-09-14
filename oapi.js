@@ -17,16 +17,17 @@ export async function run(intercepter) {
         let name = UUID()
         let pwd = UUID()
         let db = UUID()
-        let dsn=`postgres://${name}:${pwd}@oop-dev.com:5432/${db}`
+        let dsn=`postgres://${name}:${pwd}@www.oop-dev.com:5432/${db}`
         let f = await Bun.file(`${path}conf.toml`)
         f.writer().write(await f.text()+`[pg]\ndsn='${dsn}'\n`);
-        let rsp=await fetch('http://oop-dev.com/db/addUserAndDb', {
+        let rsp=await fetch('http://www.oop-dev.com/db/addUserAndDb', {
             method: 'POST', // 指定请求方法
             headers: {
                 'Content-Type': 'application/json' // 设置请求的Content-Type
             },
             body: JSON.stringify({name,pwd,db}) // 将数据转换为JSON字符串
         })
+        console.log(rsp)
         conf.pg= {dsn:dsn}
     }
     initdb()

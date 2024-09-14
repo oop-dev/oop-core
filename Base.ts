@@ -433,7 +433,6 @@ function create(clazz, row, m,parseMap) {
 
 let base={list:true,on:true,select:true,where:true}
 async function get(u, conn, parseMap,where?) {
-    console.log(u)
     let list=await await gets(u, conn, parseMap,where)
     return list[0]
 }
@@ -645,7 +644,6 @@ async function add(pname, pid, u, conn) {
     console.log(sql)
     let result = await conn.query(sql)
     let parentId = result.rows[0].id
-    console.log('parentId', parentId)
     await Promise.all(sub.map(v =>
         Array.isArray(v)
             ? Promise.all(v.map(item => add(clazz, parentId, item, conn)))
