@@ -1,4 +1,18 @@
 import {initdb} from "./Base";
+const mimeTypes = {
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml',
+    'json': 'application/json',
+    'woff': 'application/font-woff',
+    'woff2': 'application/font-woff2',
+    'ttf': 'application/font-sfnt',
+    'ico': 'favicon.ico'
+}
 let readdir, migrateSql ,Base ,migrate ,config ,path;
 if (typeof window=='undefined'){
     path=import.meta.path.split('node_modules')[0]
@@ -39,8 +53,22 @@ export async function run(intercepter) {
         async fetch(r) {
             let rid = Date.now()
             try {
+                //data.rid=rid 设置到meta里面
+                const path = new URL(r.url).pathname;
                 if (r.method == "OPTIONS") {
                     return Rsp(204, '', rid)
+                }
+                if (path == '/') {//单页应用只能/访问
+                    return new Response(Bun.file('dist/index.html'));
+                }
+                if (path=='favicon.ico'){
+                    return new Response(Bun.file('dist/favicon.ico'));
+                }
+                //@ts-ignore 判断mime文件类型代表是静态资源，
+                let split = path.split('.')
+                let suffix = split[split.length - 1]
+                if (mimeTypes[suffix]) {
+                    return new Response(Bun.file(`dist` + path));
                 }
                 if (intercepter){
                     let rsp=await intercepter(r)
@@ -50,8 +78,6 @@ export async function run(intercepter) {
                 if (r.method == "POST") {
                     data = await r?.json()||{}
                 }
-                //data.rid=rid 设置到meta里面
-                const path = new URL(r.url).pathname;
                 let [a, clazz, fn] = path.split('/')
                 //console.log(rid,'req:',data)
                 let {obj, args} = createInstanceAndReq(clazz, data)
